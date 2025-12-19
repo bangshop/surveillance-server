@@ -3,6 +3,12 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 
+// --- THIS FIXES THE TIMEOUT ERROR ---
+// Render checks this page to see if the server is alive.
+app.get('/', (req, res) => {
+  res.send('Surveillance Server is Running!');
+});
+
 // Store connected peers
 let cameraSocketId = null;
 let viewerSocketId = null;
@@ -19,13 +25,12 @@ io.on('connection', (socket) => {
   socket.on('register_viewer', () => {
     viewerSocketId = socket.id;
     console.log('Viewer registered:', socket.id);
-    // Tell the camera to start the call if a viewer joins
     if (cameraSocketId) {
       io.to(cameraSocketId).emit('viewer_joined');
     }
   });
 
-  // 2. Relay WebRTC signaling messages (Offer, Answer, ICE Candidates)
+  // 2. Relay WebRTC signaling messages
   socket.on('offer', (data) => {
     socket.broadcast.emit('offer', data);
   });
@@ -45,6 +50,8 @@ io.on('connection', (socket) => {
   });
 });
 
-http.listen(3000, () => {
-  console.log('Signaling server running on port 3000');
+// Use the PORT Render assigns, or 3000 if running locally
+const port = process.env.PORT || 3000;
+http.listen(port, () => {
+  console.log(`Signaling server running on port ${port}`);
 });
