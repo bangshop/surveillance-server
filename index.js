@@ -3,8 +3,7 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 
-// --- THIS FIXES THE TIMEOUT ERROR ---
-// Render checks this page to see if the server is alive.
+// Root route so Render knows the app is live
 app.get('/', (req, res) => {
   res.send('Surveillance Server is Running!');
 });
@@ -41,6 +40,13 @@ io.on('connection', (socket) => {
 
   socket.on('candidate', (data) => {
     socket.broadcast.emit('candidate', data);
+  });
+
+  // --- NEW: HANDLE REMOTE CAMERA SWITCH ---
+  socket.on('cmd_switch_camera', () => {
+    console.log('Command: Switch Camera received');
+    // Send this command to everyone else (which means the Camera)
+    socket.broadcast.emit('cmd_switch_camera');
   });
 
   socket.on('disconnect', () => {
