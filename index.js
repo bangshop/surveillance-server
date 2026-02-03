@@ -5,7 +5,7 @@ const io = require('socket.io')(http);
 
 // Root route so Render knows the app is live
 app.get('/', (req, res) => {
-  res.send('Surveillance Server is Running!');
+  res.send('Surveillance Server v2.0 is Online!');
 });
 
 // Store connected peers
@@ -15,21 +15,32 @@ let viewerSocketId = null;
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // 1. Identify who is who
+  // 1. Identify Camera
   socket.on('register_camera', () => {
     cameraSocketId = socket.id;
     console.log('Camera registered:', socket.id);
-  });
-
-  socket.on('register_viewer', () => {
-    viewerSocketId = socket.id;
-    console.log('Viewer registered:', socket.id);
-    if (cameraSocketId) {
+    
+    // --- THE FIX IS HERE ---
+    // If a Viewer is ALREADY waiting, tell the Camera to start immediately!
+    if (viewerSocketId) {
+      console.log('Viewer found waiting! Telling Camera to start stream...');
       io.to(cameraSocketId).emit('viewer_joined');
     }
   });
 
-  // 2. Relay WebRTC signaling messages
+  // 2. Identify Viewer
+  socket.on('register_viewer', () => {
+    viewerSocketId = socket.id;
+    console.log('Viewer registered:', socket.id);
+    
+    // If Camera is already there, ask for the stream
+    if (cameraSocketId) {
+      console.log('Camera found! Requesting stream...');
+      io.to(cameraSocketId).emit('viewer_joined');
+    }
+  });
+
+  // 3. Relay WebRTC signaling messages
   socket.on('offer', (data) => {
     socket.broadcast.emit('offer', data);
   });
@@ -42,15 +53,14 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('candidate', data);
   });
 
-  // --- NEW: HANDLE REMOTE CAMERA SWITCH ---
+  // 4. Handle Remote Camera Switch
   socket.on('cmd_switch_camera', () => {
     console.log('Command: Switch Camera received');
-    // Send this command to everyone else (which means the Camera)
     socket.broadcast.emit('cmd_switch_camera');
   });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected');
+    console.log('User disconnected:', socket.id);
     if (socket.id === cameraSocketId) cameraSocketId = null;
     if (socket.id === viewerSocketId) viewerSocketId = null;
   });
